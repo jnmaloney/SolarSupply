@@ -14,6 +14,8 @@
 #include "imgui.h"
 #include "OrbitCamera.h"
 #include "Texture.h"
+#include "HeightMap_Data.h"
+#include "HeightMap_MeshTile.h"
 
 #include "MenuMap.h"
 #include "MenuInfo.h"
@@ -40,6 +42,9 @@ int g_cameraButton = GLFW_MOUSE_BUTTON_RIGHT;
 int g_cancelButton = GLFW_MOUSE_BUTTON_RIGHT;
 
 Texture* g_texArray[10][10];
+HeightMap_MeshTile* g_hmmArray[10][10];
+HeightMap_Data* g_hmmLevel;
+bool g_hmmLevelLoaded = false;
 MenuMap g_menuMap;
 MenuInfo g_menuInfo;
 
@@ -51,7 +56,7 @@ void resetLocation_tiles();
 //
 // Fetch
 //
-void downloadSucceeded(emscripten_fetch_t *fetch)
+void downloadSucceeded_webtile(emscripten_fetch_t *fetch)
 {
   //printf("Finished downloading %llu bytes from URL %s.\n", fetch->numBytes, fetch->url);
   // The data is now available at fetch->data[0] through fetch->data[fetch->numBytes-1];
@@ -59,6 +64,30 @@ void downloadSucceeded(emscripten_fetch_t *fetch)
   Texture* t = (Texture*)fetch->userData;
   t->loadPng_fromMemory(fetch->data, fetch->numBytes);
 
+  emscripten_fetch_close(fetch); // Free data associated with the fetch.
+}
+
+
+void downloadSucceeded_heightmap(emscripten_fetch_t *fetch)
+{
+  printf("HEIGHTMAP: Finished downloading %llu bytes from URL %s.\n", fetch->numBytes, fetch->url);
+  // The data is now available at fetch->data[0] through fetch->data[fetch->numBytes-1];
+
+  //HeightMap* h = (HeightMap*)fetch->userData;
+  //h->HloadPngRaw_fromMemory(fetch->data, fetch->numBytes);
+
+  g_hmmLevel->HloadPngRaw_fromMemory(fetch->data, fetch->numBytes);
+  //printf("HEIGHTMAP: did loaded    ");
+
+  // Tiles from data
+  g_hmmArray[0][0] = g_hmmLevel->createTile(128 + 0 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
+  g_hmmArray[0][1] = g_hmmLevel->createTile(128 + 0 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
+  g_hmmArray[1][0] = g_hmmLevel->createTile(128 + 1 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
+  g_hmmArray[1][1] = g_hmmLevel->createTile(128 + 1 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
+  g_hmmArray[2][0] = g_hmmLevel->createTile(128 + 2 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
+  g_hmmArray[2][1] = g_hmmLevel->createTile(128 + 2 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
+
+  g_hmmLevelLoaded = true;
   emscripten_fetch_close(fetch); // Free data associated with the fetch.
 }
 
@@ -84,8 +113,26 @@ void downloadSucceeded_openweather(emscripten_fetch_t *fetch)
 
   emscripten_fetch_close(fetch); // Free data associated with the fetch.
 
+  // Place has been associated with lat,lon
   resetLocation_tiles();
 }
+
+
+// void downloadSucceeded_clouds(emscripten_fetch_t *fetch)
+// {
+//   // slow parse,,,
+//   std::string x;
+//   for (int i = 0; i < fetch->numBytes; ++i)
+//   {
+//     x += fetch->data[i];
+//   }
+//   //printf("%s\n", x.c_str());
+//   json response_data = json::parse(x);
+//
+//   clouds = response_data["clouds"]["all"];
+//
+//   emscripten_fetch_close(fetch); // Free data associated with the fetch.
+// }
 
 
 void downloadFailed(emscripten_fetch_t *fetch)
@@ -103,19 +150,48 @@ void draw()
   cameraControl.update(1.0);
   g_rs->setCameraPos(cameraControl.getPos(), cameraControl.pivot);
   g_rs->start();
+
+  // Draw Height Mesh
+  // if (g_hmmLevelLoaded)
+  // {
+  //   cameraControl.pivot.z = g_hmmLevel->mMaxH;
+  //
+  //   g_rs->bindMesh(g_hmmLevel);
+  //   g_rs->bindMeshElement(g_hmmLevel, 0);
+  //   glm::mat4 xform(1.0);
+  //   if (g_rs->testModelLocal(xform))
+  //   {
+  //     g_rs->drawMesh();
+  //   }
+  // }
+
+  if (g_hmmLevelLoaded)
+  {
+    cameraControl.pivot.z = g_hmmLevel->mMaxH;
+
+    for (int i = 0; i < 3; ++i)
+    {
+      for (int j = 0; j < 2; ++j)
+      {
+        g_rs->bindMesh(g_hmmArray[i][j]);
+        g_rs->bindMeshElement(g_hmmArray[i][j], 0);
+        g_texArray[i][j]->bind();
+        glm::mat4 xform(1.0);
+        if (g_rs->testModelLocal(xform))
+        {
+          g_rs->drawMesh();
+        }
+      }
+    }
+  }
+
   g_rs->end();
 
   // ImGui
   g_menuManager.predraw();
-  g_menuMap.draw(g_texArray);
+  //g_menuMap.draw(g_texArray);
   g_menuInfo.draw();
   g_menuManager.postdraw(g_windowManager);
-
-  if (g_menuInfo.resetLocation)
-  {
-    g_menuInfo.resetLocation = 0;
-    resetLocation();
-  }
 }
 
 
@@ -124,6 +200,11 @@ void draw()
 //
 void input()
 {
+  if (g_menuInfo.resetLocation)
+  {
+    g_menuInfo.resetLocation = 0;
+    resetLocation();
+  }
 }
 
 
@@ -226,6 +307,7 @@ void loop()
     s_width = g_windowManager.width;
     s_height = g_windowManager.height;
     g_rs->setProjectionPerspective(30.f); // ?
+    //g_rs->setWindow()
   }
 
   //
@@ -247,8 +329,9 @@ int init()
   g_rs = new RenderSystem();
   g_rs->init();
 
-  cameraControl.pivot.x = 50 * 2.0;
-  cameraControl.pivot.y = 50 * 2.0;
+  cameraControl.pivot.x = 128.0;
+  cameraControl.pivot.y = 128.0;
+  cameraControl.zoom(10);
 
   // Cursor callbacks
   glfwSetCursorPosCallback(g_windowManager.g_window, cursor_pos_callback);
@@ -287,6 +370,14 @@ int init()
   g_texArray[1][1] = new Texture();
   g_texArray[2][0] = new Texture();
   g_texArray[2][1] = new Texture();
+
+  g_hmmLevel = new HeightMap_Data();
+  // g_hmmArray[0][0] = new HeightMap_MeshTile();
+  // g_hmmArray[0][1] = new HeightMap_MeshTile();
+  // g_hmmArray[1][0] = new HeightMap_MeshTile();
+  // g_hmmArray[1][1] = new HeightMap_MeshTile();
+  // g_hmmArray[2][0] = new HeightMap_MeshTile();
+  // g_hmmArray[2][1] = new HeightMap_MeshTile();
 
   // for (int i = 0; i < 4; ++i)
   // {
@@ -423,6 +514,22 @@ void deg2num(double lat_deg, double lon_deg, int zoom, int& out_x, int& out_y)
 }
 
 
+void num2deg(int x, int y, int zoom, double& out_lat_deg, double& out_lon_deg)
+{
+  // n = 2.0 ** zoom
+  // lon_deg = xtile / n * 360.0 - 180.0
+  // lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * ytile / n)))
+  // lat_deg = math.degrees(lat_rad)
+  // return (lat_deg, lon_deg)
+
+  double n = pow(2.0, zoom);
+  out_lon_deg = x / n * 360.0 - 180.0;
+  double lat_rad = atan(sinh(M_PI * (1 - 2 * y / n)));
+  out_lat_deg = 180.0 * lat_rad / M_PI;
+}
+
+
+// Place has been changed...
 void resetLocation()
 {
   {
@@ -446,8 +553,34 @@ void resetLocation()
 void resetLocation_tiles()
 {
   int o_x, o_y;
-  int z = 7;
-  deg2num(g_menuInfo.m_lat, g_menuInfo.m_lon, 7, o_x, o_y);
+  int z = 7; // 15
+  deg2num(g_menuInfo.m_lat, g_menuInfo.m_lon, z, o_x, o_y);
+
+  // HeightMap tile
+
+  {
+    emscripten_fetch_attr_t attr;
+    emscripten_fetch_attr_init(&attr);
+    strcpy(attr.requestMethod, "GET");
+    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    attr.onsuccess = downloadSucceeded_heightmap;
+    attr.onerror = downloadFailed;
+    attr.userData = 0;
+
+    int x = o_x;
+    int y = o_y;
+
+    std::string url = std::string("https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=pk.eyJ1Ijoiam5tYWxvbmV5IiwiYSI6ImNrMXJqM3BjdDAxeHMzaG1naHo1bGRreWUifQ.tEcnjy-7zLUQP-EuncDW0Q");
+    url = url.replace(url.find("{x}"), 3, std::to_string(x));
+    url = url.replace(url.find("{y}"), 3, std::to_string(y));
+    url = url.replace(url.find("{z}"), 3, std::to_string(z));
+    emscripten_fetch(&attr, url.c_str());
+  }
+
+  // Web Tiles
+
+  z = 13;
+  deg2num(g_menuInfo.m_lat, g_menuInfo.m_lon, z, o_x, o_y);
 
   for (int i = 0; i < 4; ++i)
   {
@@ -459,22 +592,53 @@ void resetLocation_tiles()
       emscripten_fetch_attr_init(&attr);
       strcpy(attr.requestMethod, "GET");
       attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
-      attr.onsuccess = downloadSucceeded;
+      attr.onsuccess = downloadSucceeded_webtile;
       attr.onerror = downloadFailed;
       attr.userData = g_texArray[i][j];
 
       int x = o_x + i - 2;//3;
       int y = o_y + j - 1;
 
-      // key =  solar-870093db 
-      std::string url = std::string("https://maps.omniscale.net/v2/solar-870093db/style.outdoor/{z}/{x}/{y}.png");
+      // key =  solar-870093db
+      //std::string url = std::string("https://maps.omniscale.net/v2/solar-870093db/style.outdoor/{z}/{x}/{y}.png");
+      std::string url = std::string("https://maps.omniscale.net/v2/opensolar-public-aa5ae3b0/style.outdoor/{z}/{x}/{y}.png");
       url = url.replace(url.find("{x}"), 3, std::to_string(x));
       url = url.replace(url.find("{y}"), 3, std::to_string(y));
       url = url.replace(url.find("{z}"), 3, std::to_string(z));
-      printf("%s\n", url.c_str());
+      //printf("%s\n", url.c_str());
 
       emscripten_fetch(&attr, url.c_str());
 
     }
   }
+
+  // Noise
+  // FastNoise noise;
+  // noise.SetNoiseType(FastNoise::SimplexFractal);
+  // noise.SetFractalOctaves(5);
+
+  // Cloudiness values
+  // for (int i = 0; i < 4; ++i)
+  // {
+  //   for (int j = 0; j < 3; ++j)
+  //   {
+  //     int x = o_x + i - 2;
+  //     int y = o_y + j - 1;
+  //     double lat, lon;
+  //     num2deg(x, y, zoom, lat, lon);
+  //     std::string url = std::string("https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&APPID=f78f50c399b86a78970da6eab769c6de");
+  //     url = url.replace(url.find("{lat}"), 5, std::to_string(lat));
+  //     url = url.replace(url.find("{lon}"), 5, std::to_string(lon));
+  //     printf("%s\n", url.c_str());
+  //
+  //     emscripten_fetch_attr_t attr;
+  //     emscripten_fetch_attr_init(&attr);
+  //     strcpy(attr.requestMethod, "POST");
+  //     attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+  //     attr.onsuccess = downloadSucceeded_clouds;
+  //     attr.onerror = downloadFailed;
+  //     //attr.userData = 0;
+  //     emscripten_fetch(&attr, request.c_str());
+  //   }
+  // }
 }
