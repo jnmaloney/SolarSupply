@@ -6,7 +6,8 @@ public:
   ~OrbitCamera() {}
 
   bool move = false;
-  float heading = 0.7853982f;
+  //float heading = 0.7853982f;
+  float heading = 0.0f;
   //float pitch = 1.047198f;
   float pitch = 1.18;
 
