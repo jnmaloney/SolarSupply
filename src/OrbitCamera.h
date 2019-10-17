@@ -6,17 +6,23 @@ public:
   ~OrbitCamera() {}
 
   bool move = false;
+  bool orbit = false;
+
   //float heading = 0.7853982f;
   float heading = 0.0f;
   //float pitch = 1.047198f;
   float pitch = 1.18;
+
+  glm::vec3 pivot;
 
   double mouseBeginMoveX = 0;
   double mouseBeginMoveY = 0;
 
   glm::vec3 worldMoveBeginClick;
   glm::vec3 worldMoveBeginPivot;
-  glm::vec3 pivot;
+
+  float beginHeading = 0.0f;
+  float beginPitch = 0.0f;  
 
   glm::vec3 getPos()
   {

@@ -27,5 +27,5 @@ public:
 
 protected:
 
-  double* m_height;
+  float* m_height;
 };

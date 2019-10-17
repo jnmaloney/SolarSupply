@@ -37,12 +37,13 @@ OrbitCamera cameraControl;
 bool m_mouseDrag = false;
 double g_xpos = 0;
 double g_ypos = 0;
-int g_actionButton = GLFW_MOUSE_BUTTON_LEFT;
-int g_cameraButton = GLFW_MOUSE_BUTTON_RIGHT;
+int g_actionButton = GLFW_MOUSE_BUTTON_RIGHT;
+int g_cameraButton = GLFW_MOUSE_BUTTON_LEFT;
 int g_cancelButton = GLFW_MOUSE_BUTTON_RIGHT;
 
-Texture* g_texArray[10][10];
-HeightMap_MeshTile* g_hmmArray[10][10];
+Texture g_white;
+Texture* g_texArray[32][32];
+HeightMap_MeshTile* g_hmmArray[32][32];
 HeightMap_Data* g_hmmLevel;
 bool g_hmmLevelLoaded = false;
 MenuMap g_menuMap;
@@ -80,13 +81,16 @@ void downloadSucceeded_heightmap(emscripten_fetch_t *fetch)
   //printf("HEIGHTMAP: did loaded    ");
 
   // Tiles from data
-  g_hmmArray[0][0] = g_hmmLevel->createTile(128 + 0 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[0][1] = g_hmmLevel->createTile(128 + 0 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[1][0] = g_hmmLevel->createTile(128 + 1 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[1][1] = g_hmmLevel->createTile(128 + 1 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[2][0] = g_hmmLevel->createTile(128 + 2 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[2][1] = g_hmmLevel->createTile(128 + 2 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
-
+  for (int i = 1; i < 31; ++i)
+  {
+    for (int j = 1; j < 31; ++j)
+    {
+      //g_hmmArray[i][j] = g_hmmLevel->createTile(208 + (i - 2) * 8, 80 + (j - 1) * 8, 8 + 1, 8 + 1);
+      //g_hmmArray[i][j] = g_hmmLevel->createTile(i * 8, j * 8, 8 + 1, 8 + 1);
+      //g_hmmArray[i][j] = g_hmmLevel->createTile(i * 4, j * 4, 4 + 1, 4 + 1);
+      g_hmmArray[i][j] = g_hmmLevel->createTile(i * 8 + 8, j * 8, 8 + 1, 8 + 1);
+    }
+  }
   g_hmmLevelLoaded = true;
   emscripten_fetch_close(fetch); // Free data associated with the fetch.
 }
@@ -167,15 +171,25 @@ void draw()
 
   if (g_hmmLevelLoaded)
   {
-    cameraControl.pivot.z = g_hmmLevel->mMaxH;
+    cameraControl.pivot.z = g_hmmLevel->mMinH;
 
-    for (int i = 0; i < 3; ++i)
+    for (int i = 1; i < 31; ++i)
     {
-      for (int j = 0; j < 2; ++j)
+      for (int j = 1; j < 31; ++j)
       {
         g_rs->bindMesh(g_hmmArray[i][j]);
         g_rs->bindMeshElement(g_hmmArray[i][j], 0);
-        g_texArray[i][j]->bind();
+
+        //glBindTexture(GL_TEXTURE_2D, 0);
+        if (g_texArray[i][j])
+        {
+          g_texArray[i][j]->bind();
+        }
+        else
+        {
+          g_white.bind();
+        }
+
         glm::mat4 xform(1.0);
         if (g_rs->testModelLocal(xform))
         {
@@ -241,6 +255,15 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
     cameraControl.pivot = cameraControl.worldMoveBeginPivot - moveVector;
   }
 
+  if (cameraControl.orbit)
+  {
+    float dx = cameraControl.mouseBeginMoveX - g_xpos;
+    float dy = cameraControl.mouseBeginMoveY - g_ypos;
+
+    cameraControl.heading = cameraControl.beginHeading + dx * (-0.75f / 360.f);
+    cameraControl.pitch = cameraControl.beginPitch + dy * (-0.75f / 360.f);
+  }
+
   //g_actionManager.cursorPos((int)(0.5f + g_rs->m_cursorX), (int)(0.5f + g_rs->m_cursorY));
 }
 
@@ -253,6 +276,11 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
   if (button == g_actionButton && action == GLFW_PRESS)
   {
+    cameraControl.orbit = true;
+    cameraControl.beginPitch = cameraControl.pitch;
+    cameraControl.beginHeading = cameraControl.heading;
+    cameraControl.mouseBeginMoveX = g_xpos;
+    cameraControl.mouseBeginMoveY = g_ypos;
   }
 
   if (button == g_cameraButton && action == GLFW_PRESS)
@@ -272,6 +300,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
   if (button == g_actionButton && action == GLFW_RELEASE)
   {
+    cameraControl.orbit = false;
   }
 
   if (button == g_cameraButton && action == GLFW_RELEASE)
@@ -361,15 +390,19 @@ int init()
   //   emscripten_fetch(&attr, request.c_str());
   // }
 
+  g_white.loadPng("data/white.png");
+
+
   //
   // WMS Texture load for a location
   //
-  g_texArray[0][0] = new Texture();
-  g_texArray[0][1] = new Texture();
-  g_texArray[1][0] = new Texture();
-  g_texArray[1][1] = new Texture();
-  g_texArray[2][0] = new Texture();
-  g_texArray[2][1] = new Texture();
+  for (int i = 0; i < 32; ++i)
+  {
+    for (int j = 0; j < 32; ++j)
+    {
+      g_texArray[i][j] = 0;//new Texture();
+    }
+  }
 
   g_hmmLevel = new HeightMap_Data();
   // g_hmmArray[0][0] = new HeightMap_MeshTile();
@@ -550,10 +583,11 @@ void resetLocation()
 }
 
 
+// Location has been specifically found...
 void resetLocation_tiles()
 {
   int o_x, o_y;
-  int z = 7; // 15
+  int z = 8; //7;
   deg2num(g_menuInfo.m_lat, g_menuInfo.m_lon, z, o_x, o_y);
 
   // HeightMap tile
@@ -577,14 +611,23 @@ void resetLocation_tiles()
     emscripten_fetch(&attr, url.c_str());
   }
 
+  // Side calc
+  int x0 = o_x * 32;
+  int y0 = o_y * 32;
+
   // Web Tiles
 
   z = 13;
   deg2num(g_menuInfo.m_lat, g_menuInfo.m_lon, z, o_x, o_y);
 
-  for (int i = 0; i < 4; ++i)
+  // Side calc
+  int dx = 32 - (o_x - x0);
+  int dy = 32 - (o_y - y0);
+  printf("DX: %d    DY: %d    \n", dx, dy);
+
+  for (int i = 0; i < 32; ++i)
   {
-    for (int j = 0; j < 3; ++j)
+    for (int j = 0; j < 32; ++j)
     {
       g_texArray[i][j] = new Texture();
 
@@ -596,19 +639,19 @@ void resetLocation_tiles()
       attr.onerror = downloadFailed;
       attr.userData = g_texArray[i][j];
 
-      int x = o_x + i - 2;//3;
-      int y = o_y + j - 1;
+      int x = x0 + i + 1;
+      int y = y0 + j;
 
       // key =  solar-870093db
       //std::string url = std::string("https://maps.omniscale.net/v2/solar-870093db/style.outdoor/{z}/{x}/{y}.png");
-      std::string url = std::string("https://maps.omniscale.net/v2/opensolar-public-aa5ae3b0/style.outdoor/{z}/{x}/{y}.png");
+      //std::string url = std::string("https://maps.omniscale.net/v2/opensolar-public-aa5ae3b0/style.outdoor/{z}/{x}/{y}.png");
+      std::string url = std::string("https://atlas.microsoft.com/map/imagery/png?api-version=1.0&style=satellite&zoom={z}&x={x}&y={y}&subscription-key=i2EAus2vUSMEPX7ey2YoreZV3vIX2eVTwtzRNb4GFpQ");
       url = url.replace(url.find("{x}"), 3, std::to_string(x));
       url = url.replace(url.find("{y}"), 3, std::to_string(y));
       url = url.replace(url.find("{z}"), 3, std::to_string(z));
       //printf("%s\n", url.c_str());
 
       emscripten_fetch(&attr, url.c_str());
-
     }
   }
 

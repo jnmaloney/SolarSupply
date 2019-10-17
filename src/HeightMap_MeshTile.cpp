@@ -14,7 +14,7 @@ HeightMap_MeshTile::~HeightMap_MeshTile()
 }
 
 
-void HeightMap_MeshTile::createGeometry(int a_i, int a_j, int a_w, int a_h, double* data)
+void HeightMap_MeshTile::createGeometry(int a_i, int a_j, int a_w, int a_h, float* data)
 {
   mWidth = a_w;
   mHeight = a_h;
@@ -27,7 +27,7 @@ void HeightMap_MeshTile::createGeometry(int a_i, int a_j, int a_w, int a_h, doub
   {
     for (int i = 0; i < a_w; ++i)
     {
-      double H2 = data[(a_i+i) + (a_j+j)*256]; // <-- special data number 256
+      float H2 = data[(a_i+i) + (a_j+j)*256]; // <-- special data number 256
       glm::vec4 p;
       //p.x = a_i + i;
       p.x = 256 - (a_i + i);

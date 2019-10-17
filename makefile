@@ -18,7 +18,7 @@ USE_FETCH=-s FETCH=1
 all: $(SOURCES) $(OUTPUT)
 
 $(OUTPUT): $(SOURCES)
-	$(CC) -Isrc -I/usr/local/include/ $(SOURCES) $(USE_IMGUI) -std=c++1z $(USE_VORBIS) $(USE_LIBPNG) $(USE_WEBGL) $(USE_ENGINE_WEBCORE) $(LDFLAGS) -o $(OUTPUT) -s WASM=1 -s ASSERTIONS=1 --preload-file data $(USE_FETCH) --emrun
+	$(CC) -Isrc -I/usr/local/include/ $(SOURCES) $(USE_IMGUI) -std=c++1z $(USE_VORBIS) $(USE_LIBPNG) $(USE_WEBGL) $(USE_ENGINE_WEBCORE) $(LDFLAGS) -o $(OUTPUT) -s WASM=1 -s ASSERTIONS=1 --preload-file data $(USE_FETCH) --emrun -s ALLOW_MEMORY_GROWTH=1
 
 clean:
 	rm $(OUTPUT)

@@ -18,7 +18,7 @@ public:
   double mMinH = 0;
   double mMaxH = 0;
 
-  void createGeometry(int i, int j, int w, int h, double* data);
+  void createGeometry(int i, int j, int w, int h, float* data);
 
 protected:
 

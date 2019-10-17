@@ -24,8 +24,9 @@ void HeightMap_Data::HloadPngRaw_fromMemory(const char* data, uint64_t numBytes)
   mHeight = loader.image.height;
 
   // Create Height Map
-  m_height = new double[mWidth * mHeight];
-  double min_h = 0.00005 * ((256 * 256 * 256 + 256 * 256 + 256) * 0.001);
+  m_height = new float[mWidth * mHeight];
+  //double min_h = 0.00001 * ((256 * 256 * 256 + 256 * 256 + 256) * 0.001);
+  double min_h = 256;
   double max_h = 0;
   GLubyte* buffer = (GLubyte*)loader.buffer;
   for (int j = 0; j < mHeight; ++j)
@@ -39,7 +40,8 @@ void HeightMap_Data::HloadPngRaw_fromMemory(const char* data, uint64_t numBytes)
       double g = (double)G;
       double b = (double)B;
       //double h = -10000.0 + ((r * 256. * 256. + g * 256. + b) * 0.1);
-      double h = 0.00005 * (r * 256. * 256. + g * 256. + b) * 0.001;
+      //double h = 0.00001 * (r * 256. * 256. + g * 256. + b) * 0.001;
+      float h = (R * 256*256 + G * 256 + B) * 0.0004f;
       if (h < min_h) min_h = h;
       if (h > max_h) max_h = h;
       m_height[i + j*mWidth] = h;

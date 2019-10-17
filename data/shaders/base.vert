@@ -11,4 +11,7 @@ void main()
    uv.x = vUV.x;
    uv.y = vUV.y;
    colour = vec3(1, 1, 1);
+   //colour.x = mod(vPosition.z*6.8, 1.0);
+   //colour.y = mod(vPosition.z*2.4, 1.0);
+   //colour.z = 0.1;
 }
