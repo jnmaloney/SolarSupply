@@ -1,5 +1,5 @@
 CC=emcc
-WEBCORE_DIR:=../../WebCore_v2020.1
+WEBCORE_DIR:=../../WebCore_v2020.2
 SOURCES:=main.cpp $(wildcard src/*.cpp)
 LDFLAGS=-O2 --llvm-opts 2
 OUTPUT=out/provis.js

@@ -132,7 +132,7 @@ void HeightMap_Mesh::HloadPngRaw_fromMemory(const char* data, uint64_t numBytes)
 
 
   // Do something
-  upload_obj();
+  upload();
 
   // Clean up
   delete[] height;

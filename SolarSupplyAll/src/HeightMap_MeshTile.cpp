@@ -43,9 +43,9 @@ void HeightMap_MeshTile::createGeometry(int a_i, int a_j, int a_w, int a_h, doub
       m_vertT[i + j*mWidth] = t;
 
       glm::vec3 n;
-      p.x = 0;
-      p.y = 0;
-      p.z = 1;
+      n.x = 0;
+      n.y = 0;
+      n.z = 1;
       m_vertN[i + j*mWidth] = n;
     }
   }
@@ -70,5 +70,5 @@ void HeightMap_MeshTile::createGeometry(int a_i, int a_j, int a_w, int a_h, doub
   m_matElements["list1"] = list1;
 
   // Create the mesh from data
-  upload_obj();
+  upload();
 }

@@ -2,7 +2,6 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
-#include <emscripten/fetch.h>
 #endif
 #include "graphics.h"
 //#include "OdinEngine.h"
@@ -14,9 +13,6 @@
 #include "MenuManager.h"
 #include "imgui.h"
 #include "OrbitCamera.h"
-#include "Texture.h"
-#include "HeightMap_Data.h"
-#include "HeightMap_MeshTile.h"
 
 #include "MenuMap.h"
 #include "MenuInfo.h"
@@ -32,9 +28,7 @@
 #include <sstream>
 #include <string>
 
-#include "MeshBank.h"
-#include "SceneBatch.h"
-#include "geoutil.h"
+#include "LandscapeModel.h"
 
 
 using nlohmann::json;
@@ -50,22 +44,10 @@ double g_ypos = 0;
 int g_actionButton = GLFW_MOUSE_BUTTON_LEFT;
 int g_cameraButton = GLFW_MOUSE_BUTTON_RIGHT;
 int g_cancelButton = GLFW_MOUSE_BUTTON_RIGHT;
+LandscapeModel g_landscapeModel;
 
-Texture* g_texArray[10][10];
-HeightMap_MeshTile* g_hmmArray[10][10];
-HeightMap_Data* g_hmmLevel;
-bool g_hmmLevelLoaded = false;
 MenuMap g_menuMap;
 MenuInfo g_menuInfo;
-
-SceneBatch g_batch;
-MeshBank g_meshBank;
-
-
-//std::string g_location = "Brisbane";
-
-void resetLocation();
-void resetLocation_tiles();
 
 
 struct PostcodeExtents
@@ -140,18 +122,6 @@ void load_postcodes_data()
     g_pc_to_extents[pc] = pe;
     g_name_to_extents[name] = pe;
     g_names.push_back(name);
-
-    // //     test
-    // int z = 7; // HeightMap
-    // //int z = 13;
-    // int tile_x_min, tile_y_min, tile_x_max, tile_y_max;
-    // deg2num(pe->lat_min, pe->lon_min, z, tile_x_min, tile_y_min);
-    // deg2num(pe->lat_max, pe->lon_max, z, tile_x_max, tile_y_max);
-    // if (tile_x_min != tile_x_max || tile_y_min != tile_y_max)
-    // {
-    //   if ((tile_x_max - tile_x_min + 1) * (-tile_y_max + tile_y_min + 1) > 10)
-    //   std::cout << pe->pc << " " << (tile_x_max - tile_x_min + 1) * (-tile_y_max + tile_y_min + 1) << " " << tile_x_min << " " << tile_x_max << " " << tile_y_min << " " << tile_y_max << " " << pe->name << std::endl;
-    // }
   }
 }
 
@@ -213,92 +183,34 @@ void find_matches(std::string in, std::vector<std::string>& out)
 
 
 //
-// Fetch
-//
-void downloadSucceeded_webtile(emscripten_fetch_t *fetch)
-{
-  //printf("Finished downloading %llu bytes from URL %s.\n", fetch->numBytes, fetch->url);
-  // The data is now available at fetch->data[0] through fetch->data[fetch->numBytes-1];
-
-  Texture* t = (Texture*)fetch->userData;
-  t->loadPng_fromMemory(fetch->data, fetch->numBytes);
-
-  emscripten_fetch_close(fetch); // Free data associated with the fetch.
-}
-
-
-void downloadSucceeded_heightmap(emscripten_fetch_t *fetch)
-{
-  printf("HEIGHTMAP: Finished downloading %llu bytes from URL %s.\n", fetch->numBytes, fetch->url);
-  // The data is now available at fetch->data[0] through fetch->data[fetch->numBytes-1];
-
-  //HeightMap* h = (HeightMap*)fetch->userData;
-  //h->HloadPngRaw_fromMemory(fetch->data, fetch->numBytes);
-
-  g_hmmLevel->HloadPngRaw_fromMemory(fetch->data, fetch->numBytes);
-  //printf("HEIGHTMAP: did loaded    ");
-
-  // Tiles from data
-  g_hmmArray[0][0] = g_hmmLevel->createTile(128 + 0 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[0][1] = g_hmmLevel->createTile(128 + 0 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[1][0] = g_hmmLevel->createTile(128 + 1 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[1][1] = g_hmmLevel->createTile(128 + 1 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[2][0] = g_hmmLevel->createTile(128 + 2 * 8, 128 + 0 * 8, 8 + 1, 8 + 1);
-  g_hmmArray[2][1] = g_hmmLevel->createTile(128 + 2 * 8, 128 + 1 * 8, 8 + 1, 8 + 1);
-
-  g_hmmLevelLoaded = true;
-  emscripten_fetch_close(fetch); // Free data associated with the fetch.
-}
-
-
-void downloadFailed(emscripten_fetch_t *fetch)
-{
-  printf("Downloading %s failed, HTTP failure status code: %d.\n", fetch->url, fetch->status);
-  emscripten_fetch_close(fetch); // Also free data on failure.
-}
-
-//
 // Drawing
 //
 void draw()
 {
-  // Set camera view
-  cameraControl.update(1.0);
-  //g_rs->setCameraPos(cameraControl.getPos(), cameraControl.pivot);
-  g_rs->setCameraPos(
-    glm::vec3(0, 0, -200),
-    glm::vec3(0, 0, 10),
-    glm::vec3(1, 0, 0));
-  g_rs->start();
+  static bool g_viewMode = 0;
 
-  // if (g_hmmLevelLoaded)
-  // {
-  //   cameraControl.pivot.z = g_hmmLevel->mMaxH;
-  //
-  //   for (int i = 0; i < 3; ++i)
-  //   {
-  //     for (int j = 0; j < 2; ++j)
-  //     {
-  //       g_rs->bindMesh(g_hmmArray[i][j]);
-  //       g_rs->bindMeshElement(g_hmmArray[i][j], 0);
-  //       g_texArray[i][j]->bind();
-  //       glm::mat4 xform(1.0);
-  //       if (g_rs->testModelLocal(xform))
-  //       {
-  //         g_rs->drawMesh();
-  //       }
-  //     }
-  //   }
-  // }
+  if (g_viewMode == 0)
+  {
+    g_rs->setCameraPos(
+      glm::vec3(0, 0, -200),
+      glm::vec3(0, 0, 10),
+      glm::vec3(1, 0, 0));
+    g_rs->start();
 
-
-  g_batch.draw(g_rs, &g_meshBank);
-
-  g_rs->end();
+    g_rs->end();
+  }
+  if (g_viewMode == 1)
+  {
+    cameraControl.update(1.0);
+    g_rs->setCameraPos(cameraControl.getPos(), cameraControl.pivot, glm::vec3(0, 0, 1));
+    g_rs->start();
+    g_landscapeModel.draw(g_rs);
+    g_rs->end();
+  }
 
   // ImGui
   g_menuManager.predraw();
-  //g_menuMap.draw(g_texArray);
+  ImGui::Checkbox("3D view", &g_viewMode);
   bool set = g_menuInfo.draw();
   if (set)
   {
@@ -321,6 +233,25 @@ void draw()
     g_menuInfo.cap_10_100 = i->cap_10_100;
     g_menuInfo.cap_over100 = i->cap_over100;
 
+    // 3D
+    g_landscapeModel.setLocation(e->lon_min, e->lon_max, e->lat_min, e->lat_max);
+
+    // Center
+    // int tile_x_min, tile_y_min, tile_x_max, tile_y_max;
+    // int z = 7;
+    // deg2num(e->lat_min, e->lon_min, z, tile_x_min, tile_y_min);
+    // deg2num(e->lat_max, e->lon_max, z, tile_x_max, tile_y_max);
+    // float tile_x_center, tile_y_center;
+    // deg2numf(e->lat, e->lon, z, tile_x_center, tile_y_center);
+
+    // // float x = 0.5 * (1 + tile_x_max - tile_x_min);
+    // // float y = 0.5 * (1 + tile_y_min - tile_y_max);
+    // float x = 1.0 - (tile_x_center - tile_x_min);
+    // float y = tile_y_center - tile_y_max;
+    // std::cout << x << std::endl;
+    // std::cout << tile_x_center << std::endl;
+    // cameraControl.pivot.x = 0.1 * 256 * x;
+    // cameraControl.pivot.y = 0.1 * 256 * y;
   }
   g_menuManager.postdraw();
 }
@@ -334,7 +265,6 @@ void input()
   if (g_menuInfo.resetLocation)
   {
     g_menuInfo.resetLocation = 0;
-    resetLocation();
   }
 }
 
@@ -455,6 +385,8 @@ int init()
   cameraControl.pivot.y = 128.0;
   cameraControl.zoom(10);
 
+  g_landscapeModel.init();
+
   // Cursor callbacks
   glfwSetCursorPosCallback(g_windowManager.g_window, cursor_pos_callback);
   glfwSetMouseButtonCallback(g_windowManager.g_window, mouse_button_callback);
@@ -466,18 +398,6 @@ int init()
 
   // Set Camera Projection
   g_rs->setProjectionPerspective(30.f);
-
-  //
-  // WMS Texture load for a location
-  //
-  g_texArray[0][0] = new Texture();
-  g_texArray[0][1] = new Texture();
-  g_texArray[1][0] = new Texture();
-  g_texArray[1][1] = new Texture();
-  g_texArray[2][0] = new Texture();
-  g_texArray[2][1] = new Texture();
-
-  g_hmmLevel = new HeightMap_Data();
 
   //
   // ImGui Style
@@ -553,11 +473,11 @@ int init()
   //
   // Create a Mesh
   //
-  g_meshBank.add("aus_all", "data/australia_states.obj", "data/bg1.png");
-  g_meshBank.load();
-  glm::mat4 mvp(1.0);
-  mvp = glm::scale(mvp, glm::vec3(1280.0));
-  g_batch.addElement("aus_all", mvp);
+  //g_meshBank.add("aus_all", "data/australia_states.obj", "data/bg1.png");
+  //g_meshBank.load();
+  //glm::mat4 mvp(1.0);
+  //mvp = glm::scale(mvp, glm::vec3(1280.0));
+  //g_batch.addElement("aus_all", mvp);
 
   return 0;
 }
@@ -585,72 +505,3 @@ extern "C" int main(int argc, char** argv)
   return 0;
 }
 
-
-// Place has been changed...
-void resetLocation()
-{
-}
-
-
-void resetLocation_tiles()
-{
-  int o_x, o_y;
-  int z = 7; // 15
-  deg2num(g_menuInfo.m_lat, g_menuInfo.m_lon, z, o_x, o_y);
-
-  // HeightMap tile
-
-  {
-    emscripten_fetch_attr_t attr;
-    emscripten_fetch_attr_init(&attr);
-    strcpy(attr.requestMethod, "GET");
-    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
-    attr.onsuccess = downloadSucceeded_heightmap;
-    attr.onerror = downloadFailed;
-    attr.userData = 0;
-
-    int x = o_x;
-    int y = o_y;
-
-    std::string url = std::string("https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=pk.eyJ1Ijoiam5tYWxvbmV5IiwiYSI6ImNrMXJqM3BjdDAxeHMzaG1naHo1bGRreWUifQ.tEcnjy-7zLUQP-EuncDW0Q");
-    url = url.replace(url.find("{x}"), 3, std::to_string(x));
-    url = url.replace(url.find("{y}"), 3, std::to_string(y));
-    url = url.replace(url.find("{z}"), 3, std::to_string(z));
-    emscripten_fetch(&attr, url.c_str());
-  }
-
-  // Web Tiles
-
-  z = 13;
-  deg2num(g_menuInfo.m_lat, g_menuInfo.m_lon, z, o_x, o_y);
-
-  for (int i = 0; i < 4; ++i)
-  {
-    for (int j = 0; j < 3; ++j)
-    {
-      g_texArray[i][j] = new Texture();
-
-      emscripten_fetch_attr_t attr;
-      emscripten_fetch_attr_init(&attr);
-      strcpy(attr.requestMethod, "GET");
-      attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
-      attr.onsuccess = downloadSucceeded_webtile;
-      attr.onerror = downloadFailed;
-      attr.userData = g_texArray[i][j];
-
-      int x = o_x + i - 2;//3;
-      int y = o_y + j - 1;
-
-      // key =  solar-870093db
-      //std::string url = std::string("https://maps.omniscale.net/v2/solar-870093db/style.outdoor/{z}/{x}/{y}.png");
-      std::string url = std::string("https://maps.omniscale.net/v2/opensolar-public-aa5ae3b0/style.outdoor/{z}/{x}/{y}.png");
-      url = url.replace(url.find("{x}"), 3, std::to_string(x));
-      url = url.replace(url.find("{y}"), 3, std::to_string(y));
-      url = url.replace(url.find("{z}"), 3, std::to_string(z));
-      //printf("%s\n", url.c_str());
-
-      emscripten_fetch(&attr, url.c_str());
-
-    }
-  }
-}

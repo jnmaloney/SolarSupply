@@ -1,0 +1,21 @@
+# Blender v2.79 (sub 0) OBJ File: ''
+# www.blender.org
+mtllib Generator.mtl
+o Tile
+v 0.5 0.0 0.5 
+v -0.5 0.0 0.5 
+v -0.5 0.0 -0.5
+v 0.5 0.0 -0.5 
+vn 0.0 0.0 1.0
+vn 0.0 0.0 1.0
+vn 0.0 0.0 1.0
+vn 0.0 0.0 1.0
+vt 0.0 1.0
+vt 0.0 0.0
+vt 1.0 0.0
+vt 1.0 1.0
+usemtl (null)
+s off
+f 1/1/1 2/2/2 3/3/3
+f 4/4/4 3/3/3 1/1/1
+
