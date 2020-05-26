@@ -56,5 +56,59 @@
       };
     </script>
     <script async type="text/javascript" src="provis.js"></script>
+    <script>
+      var loadTextFile = function(filename, callback) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', filename, true);
+      xhr.responseType = 'blob';
+
+      xhr.onload = function(e) {
+          if (this.status == 200) {
+            var blob = new Blob([this.response], {type: 'text/plain'});
+            var fileReader = new FileReader();
+            fileReader.readAsText(blob);
+            fileReader.onload = function(event) {
+              callback(fileReader.result);
+            };
+          }
+        };
+        xhr.send();
+      };
+
+      var z = -1.0;
+      var g_pc = "";
+      var g_pc_tobe = "";
+
+      var postcode_y = function(v) {
+        z = v;
+        g_pc = g_pc_tobe;
+      }
+
+      var postcode_x = function(pc) {
+        g_pc_tobe = pc;
+        pcname = pc + ".txt"
+        if (pcname.length < 8) pcname = "0" + pcname;
+        var fname = "dailydata/" + pcname;
+        loadTextFile(fname, postcode_y);
+      }
+
+      var postcode_z = function(pc) {
+        if (pc == g_pc) return z;
+        return -1.0;
+      }
+
+
+      var power_value;
+      var g_data = [];
+      var setStatePower = function(power) { g_data = power.split("\n"); };
+      var setTotalPower = function(power) { power_value = power; }
+      loadTextFile('data_total.txt', setTotalPower);
+      loadTextFile('data_state.txt', setStatePower);
+      var getStateData = function(i) {
+        if (g_data.length < i) return -1.0;
+        return g_data[i];        
+      }
+
+    </script>    
   </body>
 </html>

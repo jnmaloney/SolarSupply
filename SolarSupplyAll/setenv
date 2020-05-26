@@ -1,3 +1,5 @@
 source ~/emsdk/emsdk_env.sh 
 emrun out/index\ \(dev\).html 
 
+
+source ~/Documents/dev/emsdk/emsdk_env.sh 

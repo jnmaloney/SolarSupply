@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdio.h>
 
 #ifdef __EMSCRIPTEN__
@@ -17,8 +18,6 @@
 #include "MenuMap.h"
 #include "MenuInfo.h"
 
-#include "json.hpp"
-
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -29,9 +28,7 @@
 #include <string>
 
 #include "LandscapeModel.h"
-
-
-using nlohmann::json;
+#include "geoutil.h"
 
 
 RenderSystem* g_rs = 0;
@@ -191,12 +188,7 @@ void draw()
 
   if (g_viewMode == 0)
   {
-    g_rs->setCameraPos(
-      glm::vec3(0, 0, -200),
-      glm::vec3(0, 0, 10),
-      glm::vec3(1, 0, 0));
     g_rs->start();
-
     g_rs->end();
   }
   if (g_viewMode == 1)
@@ -210,20 +202,26 @@ void draw()
 
   // ImGui
   g_menuManager.predraw();
-  ImGui::Checkbox("3D view", &g_viewMode);
+  //ImGui::Checkbox("3D view", &g_viewMode);
   bool set = g_menuInfo.draw();
+  static std::string s_setPostcode = "";
   if (set)
-  {
+  {  
     PostcodeExtents* e = g_name_to_extents[g_menuInfo.m_location];
+    s_setPostcode = e->pc;
+ 
+    //double s = 2.68;
+    double s = g_menuInfo.m_s_x;
+    // double deg_to_pix_x = (s * 256.0 / 90.0);
+    // double deg_to_pix_y = (s * 256.0 / -66.5);
 
-    double deg_to_pix_x = 16.977777777777778;
-    double deg_to_pix_y = 19.082602954611577;
+    double x0_pixel = 242 - 64 * s + 16;
+    double y0_pixel = 32 + 16;
 
-    double x0_pixel = -deg_to_pix_x * 146.25 + 737;
-    double y0_pixel =  deg_to_pix_y * -21.943045533438177 + 266;
-
-    g_menuInfo.x_label = x0_pixel + deg_to_pix_x * e->lon;
-    g_menuInfo.y_label = y0_pixel - deg_to_pix_y * e->lat;
+    // // g_menuInfo.x_label = x0_pixel + deg_to_pix_x * (e->lon - 90.0);
+    // // g_menuInfo.y_label = y0_pixel + deg_to_pix_y * e->lat;
+    // g_menuInfo.x_label = x0_pixel + deg_to_pix_x * (0);
+    // g_menuInfo.y_label = y0_pixel + deg_to_pix_y * 0;
 
     PostcodeInstalls* i = g_pc_to_installs[e->pc];
     g_menuInfo.installs = i->installs;
@@ -233,8 +231,28 @@ void draw()
     g_menuInfo.cap_10_100 = i->cap_10_100;
     g_menuInfo.cap_over100 = i->cap_over100;
 
+    // okay den
+    float xf, yf;
+    deg2numf(e->lat, e->lon_min, 2, xf, yf);
+    xf -= 3;
+    yf -= 2;
+    g_menuInfo.x_label = x0_pixel + xf * 256 * s;
+    g_menuInfo.y_label = y0_pixel + yf * 256 * s;
+    
+    deg2numf(e->lat_min, e->lon_min, 2, xf, yf);
+    xf -= 3;
+    yf -= 2;   
+    g_menuInfo.x_patch_min = x0_pixel + xf * 256 * s - 1;
+    g_menuInfo.y_patch_min = y0_pixel + yf * 256 * s + 1;
+
+    deg2numf(e->lat_max, e->lon_max, 2, xf, yf);
+    xf -= 3;
+    yf -= 2;  
+    g_menuInfo.x_patch_max = x0_pixel + xf * 256 * s + 1;
+    g_menuInfo.y_patch_max = y0_pixel + yf * 256 * s - 1;  
+
     // 3D
-    g_landscapeModel.setLocation(e->lon_min, e->lon_max, e->lat_min, e->lat_max);
+    //g_landscapeModel.setLocation(e->lon_min, e->lon_max, e->lat_min, e->lat_max);
 
     // Center
     // int tile_x_min, tile_y_min, tile_x_max, tile_y_max;
@@ -252,8 +270,70 @@ void draw()
     // std::cout << tile_x_center << std::endl;
     // cameraControl.pivot.x = 0.1 * 256 * x;
     // cameraControl.pivot.y = 0.1 * 256 * y;
+
+    // And then checking the postcode generated daily data
+    // Once per set()
+    EM_ASM({
+      return postcode_x($0);
+      }, atoi(e->pc.c_str()));
+    
+    // if (g_menuInfo.m_a < 0)
+    // {
+    //   double x = EM_ASM_DOUBLE({
+    //       return daily_total;
+    //       });
+    //   g_menuInfo.m_a = x;
+    // }    
+    // if (g_menuInfo.m_b < 0)
+    // {
+    //   double x = EM_ASM_DOUBLE({
+    //       return daily_state_total;
+    //       });
+    //   g_menuInfo.m_b = x;
+    // }    
   }
   g_menuManager.postdraw();
+
+  // Some additional settings:
+  // Selected postcode
+  if (g_menuInfo.m_x < 0 && s_setPostcode.size())
+  {
+    double x = EM_ASM_DOUBLE({
+        return postcode_z($0);
+        }, atoi(s_setPostcode.c_str()));
+    g_menuInfo.m_x = x;
+  }  
+
+  // Daily Total
+  if (g_menuInfo.m_daily_all < 0)
+  {
+    double x = EM_ASM_DOUBLE({
+        return power_value;
+        });
+    g_menuInfo.m_daily_all = x;
+  }  
+
+  // Daily Total (State)
+  if (g_menuInfo.m_daily_state.size() < 9)
+  {
+    // Init array
+    g_menuInfo.m_daily_state.resize(9);
+    for (int i = 0; i < 9; ++i)
+    {
+      g_menuInfo.m_daily_state[i] = -1;
+    }
+  }
+  else
+  {
+    // Check array values with JS File Loader (async)
+    for (int i = 0; i < 9; ++i)
+    {
+      if (g_menuInfo.m_daily_state[i] < 0)
+      {
+        g_menuInfo.m_daily_state[i] = EM_ASM_DOUBLE({ return getStateData($0); }, i);
+      }
+    }
+  }
 }
 
 
@@ -372,10 +452,16 @@ void loop()
 
 int init()
 {
-  g_windowManager.width = 1024;
-  g_windowManager.height = 768;
-  g_windowManager.init("Project");
-  g_menuManager.fontNameTTF =  "data/font/OpenSans-Regular.ttf";
+  // g_windowManager.width = 1024;
+  // g_windowManager.height = 768;
+  // g_windowManager.width = 800;
+  // g_windowManager.height = 600;
+    g_windowManager.width = 640;
+  g_windowManager.height = 480;
+  //   g_windowManager.width = 480;
+  // g_windowManager.height = 270;  
+  g_windowManager.init("Project 2020");
+  g_menuManager.fontNameTTF = "data/font/OpenSans-Regular.ttf";
   g_menuManager.init(g_windowManager);
 
   g_rs = new RenderSystem();
@@ -385,7 +471,7 @@ int init()
   cameraControl.pivot.y = 128.0;
   cameraControl.zoom(10);
 
-  g_landscapeModel.init();
+   g_landscapeModel.init();
 
   // Cursor callbacks
   glfwSetCursorPosCallback(g_windowManager.g_window, cursor_pos_callback);

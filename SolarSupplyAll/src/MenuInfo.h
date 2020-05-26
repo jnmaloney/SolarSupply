@@ -27,6 +27,16 @@ public:
   double m_visibility = 0;
   int m_sunrise = 0;
   int m_sunset = 0;
+  double m_x = -1;
+
+  double m_s_x = 1.0;
+
+  double m_a = -1.0;
+  double m_b = -1.0;
+
+  float m_daily_all = -1.f;
+  std::vector<float> m_daily_state;
+
 
   std::string m_location;
 
@@ -36,6 +46,10 @@ public:
 
   int x_label = 0;
   int y_label = 0;
+  int x_patch_min = 0;
+  int y_patch_min = 0;
+  int x_patch_max = 0;
+  int y_patch_max = 0;
 
   int installs;
   int dwellings;

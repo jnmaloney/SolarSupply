@@ -6,6 +6,16 @@
 #include "Util.h"
 #include <iostream>
 
+#include <sstream>
+template<class T>
+std::string FormatWithCommas(T value)
+{
+    std::stringstream ss;
+    ss.imbue(std::locale(""));
+    ss << std::fixed << value;
+    return ss.str();
+}
+
 
 MenuInfo::MenuInfo()
 {}
@@ -17,7 +27,95 @@ MenuInfo::~MenuInfo()
 
 bool MenuInfo::draw()
 {
-  //ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1, 0.1, 0.1, 0.7));
+  int screenwidth = ImGui::GetIO().DisplaySize.x;
+  int screenheight = ImGui::GetIO().DisplaySize.y;
+    int LABEL_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
+
+  // Au MAP
+  {
+    static Texture* texture = 0;
+    if (texture == 0)
+    {
+      texture = new Texture;
+      texture->loadPng("data/tile121.png");
+    }
+    ImTextureID id = (ImTextureID)texture->getID();
+
+    int x = 242;
+    int y = 32;
+    int screen_wanted_x = screenwidth - 2 * x;
+    int pixel_src_x = 118;
+    double s_x = (double)screen_wanted_x / (double)pixel_src_x;
+    int w = 256.0 * s_x;
+    int h = w;
+    x -= 64 * s_x;
+    m_s_x = s_x;
+
+    // std::cout << x << std::endl;
+    // std::cout << y << std::endl;
+    // std::cout << w << std::endl;
+    // std::cout << h << std::endl;
+    // std::cout << screenwidth << std::endl;
+    // std::cout << screenheight << std::endl;
+
+    //pixel_x = x;
+    //pixel_width = w;
+    //degree_width = c;
+    //degree_start = c;
+
+    // also lat-lon to pixel y-x
+
+    ImGui::SetNextWindowPos(ImVec2(x, y), 0, ImVec2(0, 0));
+    int FULL_SCREEN_FLAGS = ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                                ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground;
+    ImGui::Begin("Map", NULL, FULL_SCREEN_FLAGS);
+    ImGui::Image(id, ImVec2(w, h));
+
+    //ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(), ImVec2(100,110), ImGui::ColorConvertFloat4ToU32(ImVec4(1, .15, .15, 1)));
+    ImGui::GetWindowDrawList()->AddRectFilled(
+      ImVec2(x_patch_min, y_patch_min), 
+      ImVec2(x_patch_max, y_patch_max),     
+      ImGui::ColorConvertFloat4ToU32(ImVec4(.95, .95, .95, 0.5))
+    );
+    ImGui::GetWindowDrawList()->AddRect(
+      ImVec2(x_patch_min-1, y_patch_min+1), 
+      ImVec2(x_patch_max+1, y_patch_max-1),     
+      ImGui::ColorConvertFloat4ToU32(ImVec4(.95, .95, .95, 1.0))
+    );
+
+    ImGui::End();
+  }
+
+  // "National Total" Text
+  {
+    int x = 0.5 * screenwidth;
+    int y = 0.51 * screenheight;
+    ImGui::SetNextWindowPos(ImVec2(x, y), 0, ImVec2(0.5, 0));
+    ImGui::Begin("DailyAll", NULL, LABEL_FLAGS);
+    ImGui::Text("Daily Solar Supply: %.1f MWh (previous 24 hours)", m_daily_all/1000.);
+    ImGui::End();
+  }
+
+  // "States Total" Texts
+  {    
+    int x = 0.5 * screenwidth;
+    int y = 0.68 * screenheight;
+    ImGui::SetNextWindowPos(ImVec2(x, y), 0, ImVec2(0.5, 0));
+    ImGui::Begin("DailyStates", NULL, LABEL_FLAGS);
+    if (m_daily_state.size() == 9)
+    {
+      if (m_daily_state[0] > 0) ImGui::Text("New South Wales: %.1f",              m_daily_state[0]/1000.); ImGui::SameLine();
+      if (m_daily_state[1] > 0) ImGui::Text("Victoria: %.1f",                     m_daily_state[1]/1000.); 
+      if (m_daily_state[2] > 0) ImGui::Text("Queensland: %.1f",                   m_daily_state[2]/1000.); ImGui::SameLine();
+      if (m_daily_state[3] > 0) ImGui::Text("South Australia: %.1f",              m_daily_state[3]/1000.);
+      if (m_daily_state[4] > 0) ImGui::Text("Western Australia: %.1f",            m_daily_state[4]/1000.); ImGui::SameLine();
+      if (m_daily_state[5] > 0) ImGui::Text("Tasmania: %.1f",                     m_daily_state[5]/1000.);
+      if (m_daily_state[6] > 0) ImGui::Text("Northern Territory: %.1f",           m_daily_state[6]/1000.); ImGui::SameLine();
+      if (m_daily_state[7] > 0) ImGui::Text("Australian Capital Territory: %.1f", m_daily_state[7]/1000.);
+      if (m_daily_state[8] > 0) ImGui::Text("Other Territories: %.1f",            m_daily_state[8]/1000.); ImGui::SameLine();
+    }
+    ImGui::End();
+  }
 
   ImVec2 pos(42.f, 42.f);
   ImVec2 pivot(0, 0);
@@ -31,13 +129,13 @@ bool MenuInfo::draw()
 
   if (x_label > 0)
   {
-    ImGui::SetNextWindowPos(ImVec2(x_label, y_label), 0, ImVec2(0, 0));
-    ImGui::Begin("LLabele", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+    ImGui::SetNextWindowPos(ImVec2(x_label, y_label), 0, ImVec2(0.5, 1.2));
+    ImGui::Begin("LLabele", NULL, LABEL_FLAGS);
     ImGui::Text("%s", m_location.c_str());
     ImGui::End(); // Window
 
 
-    ImGui::SetNextWindowPos(ImVec2(1024.0 - 199.0, 42.0), 0, ImVec2(0, 0));
+    ImGui::SetNextWindowPos(ImVec2(screenwidth- 199.0, 42.0), 0, ImVec2(0, 0));
     ImGui::Begin("Stats", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
     ImGui::Text("Statistics for %s", m_location.c_str());
     if (dwellings == 0)
@@ -48,9 +146,13 @@ bool MenuInfo::draw()
     ImGui::Text("<10kW: %.1f", cap_under10);
     ImGui::Text("10-100kW: %.1f", cap_10_100);
     ImGui::Text(">100kW: %.1f", cap_over100);
-    ImGui::Text("Daily Supply: ??? (MWh)");
+    if (m_x < 0)
+      ImGui::Text("Daily Supply: ??? (MWh)");
+    else
+      ImGui::Text("Daily Supply: %.1f (MWh)", m_x/1000.);
 
     ImGui::End(); // Window
+
   }
 
   return set;
@@ -161,6 +263,11 @@ bool MenuInfo::drawLocation()
   }
 
   ImGui::PopFont();
+
+  if (resetLocation)
+  {
+    m_x = -1;
+  }
 
   return resetLocation;
 }
