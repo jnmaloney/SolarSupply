@@ -30,6 +30,7 @@ public:
   double m_x = -1;
 
   double m_s_x = 1.0;
+  bool m_viewMode = 0;
 
   double m_a = -1.0;
   double m_b = -1.0;

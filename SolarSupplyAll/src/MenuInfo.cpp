@@ -6,16 +6,6 @@
 #include "Util.h"
 #include <iostream>
 
-#include <sstream>
-template<class T>
-std::string FormatWithCommas(T value)
-{
-    std::stringstream ss;
-    ss.imbue(std::locale(""));
-    ss << std::fixed << value;
-    return ss.str();
-}
-
 
 MenuInfo::MenuInfo()
 {}
@@ -29,9 +19,11 @@ bool MenuInfo::draw()
 {
   int screenwidth = ImGui::GetIO().DisplaySize.x;
   int screenheight = ImGui::GetIO().DisplaySize.y;
-    int LABEL_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
-
+  int LABEL_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing;
+  int FULL_SCREEN_FLAGS = ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                                ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing;
   // Au MAP
+  if (m_viewMode == 0)
   {
     static Texture* texture = 0;
     if (texture == 0)
@@ -66,8 +58,6 @@ bool MenuInfo::draw()
     // also lat-lon to pixel y-x
 
     ImGui::SetNextWindowPos(ImVec2(x, y), 0, ImVec2(0, 0));
-    int FULL_SCREEN_FLAGS = ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
-                                ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground;
     ImGui::Begin("Map", NULL, FULL_SCREEN_FLAGS);
     ImGui::Image(id, ImVec2(w, h));
 
@@ -87,21 +77,29 @@ bool MenuInfo::draw()
   }
 
   // "National Total" Text
+  if (m_viewMode == 0)
   {
+    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[2]);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.90f, 0.90f, 0.90f, 1.00f));
+
     int x = 0.5 * screenwidth;
     int y = 0.51 * screenheight;
     ImGui::SetNextWindowPos(ImVec2(x, y), 0, ImVec2(0.5, 0));
-    ImGui::Begin("DailyAll", NULL, LABEL_FLAGS);
+    ImGui::Begin("DailyAll", NULL, FULL_SCREEN_FLAGS);
     ImGui::Text("Daily Solar Supply: %.1f MWh (previous 24 hours)", m_daily_all/1000.);
     ImGui::End();
+
+    ImGui::PopStyleColor();
+    ImGui::PopFont();
   }
 
   // "States Total" Texts
+  if (m_viewMode == 0)
   {    
     int x = 0.5 * screenwidth;
     int y = 0.68 * screenheight;
     ImGui::SetNextWindowPos(ImVec2(x, y), 0, ImVec2(0.5, 0));
-    ImGui::Begin("DailyStates", NULL, LABEL_FLAGS);
+    ImGui::Begin("DailyStates", NULL, FULL_SCREEN_FLAGS);
     if (m_daily_state.size() == 9)
     {
       if (m_daily_state[0] > 0) ImGui::Text("New South Wales: %.1f",              m_daily_state[0]/1000.); ImGui::SameLine();
@@ -117,6 +115,7 @@ bool MenuInfo::draw()
     ImGui::End();
   }
 
+  // Choosing the location
   ImVec2 pos(42.f, 42.f);
   ImVec2 pivot(0, 0);
   ImGui::SetNextWindowPos(pos, 0, pivot);
@@ -127,14 +126,19 @@ bool MenuInfo::draw()
 
   ImGui::End(); // Window
 
-  if (x_label > 0)
+  // Labels and info on selected location (if there is one)
+  // Label on map
+  if (x_label > 0 && m_viewMode == 0)
   {
     ImGui::SetNextWindowPos(ImVec2(x_label, y_label), 0, ImVec2(0.5, 1.2));
     ImGui::Begin("LLabele", NULL, LABEL_FLAGS);
     ImGui::Text("%s", m_location.c_str());
     ImGui::End(); // Window
+  }
 
-
+  // Selected location info
+  if (x_label > 0)
+  {
     ImGui::SetNextWindowPos(ImVec2(screenwidth- 199.0, 42.0), 0, ImVec2(0, 0));
     ImGui::Begin("Stats", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
     ImGui::Text("Statistics for %s", m_location.c_str());
@@ -147,7 +151,7 @@ bool MenuInfo::draw()
     ImGui::Text("10-100kW: %.1f", cap_10_100);
     ImGui::Text(">100kW: %.1f", cap_over100);
     if (m_x < 0)
-      ImGui::Text("Daily Supply: ??? (MWh)");
+      ImGui::Text("Daily Supply: ???");
     else
       ImGui::Text("Daily Supply: %.1f (MWh)", m_x/1000.);
 
@@ -263,6 +267,11 @@ bool MenuInfo::drawLocation()
   }
 
   ImGui::PopFont();
+
+  if (!active)
+  {
+    ImGui::Checkbox("3D view", &m_viewMode); // check to view 3D
+  }
 
   if (resetLocation)
   {

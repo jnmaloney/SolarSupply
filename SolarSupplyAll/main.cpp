@@ -184,14 +184,12 @@ void find_matches(std::string in, std::vector<std::string>& out)
 //
 void draw()
 {
-  static bool g_viewMode = 0;
-
-  if (g_viewMode == 0)
+  if (g_menuInfo.m_viewMode == 0)
   {
     g_rs->start();
     g_rs->end();
   }
-  if (g_viewMode == 1)
+  if (g_menuInfo.m_viewMode == 1)
   {
     cameraControl.update(1.0);
     g_rs->setCameraPos(cameraControl.getPos(), cameraControl.pivot, glm::vec3(0, 0, 1));
@@ -202,7 +200,7 @@ void draw()
 
   // ImGui
   g_menuManager.predraw();
-  //ImGui::Checkbox("3D view", &g_viewMode);
+  //ImGui::Checkbox("3D view", &g_viewMode); // check to view 3D
   bool set = g_menuInfo.draw();
   static std::string s_setPostcode = "";
   if (set)
@@ -210,18 +208,10 @@ void draw()
     PostcodeExtents* e = g_name_to_extents[g_menuInfo.m_location];
     s_setPostcode = e->pc;
  
-    //double s = 2.68;
     double s = g_menuInfo.m_s_x;
-    // double deg_to_pix_x = (s * 256.0 / 90.0);
-    // double deg_to_pix_y = (s * 256.0 / -66.5);
 
     double x0_pixel = 242 - 64 * s + 16;
     double y0_pixel = 32 + 16;
-
-    // // g_menuInfo.x_label = x0_pixel + deg_to_pix_x * (e->lon - 90.0);
-    // // g_menuInfo.y_label = y0_pixel + deg_to_pix_y * e->lat;
-    // g_menuInfo.x_label = x0_pixel + deg_to_pix_x * (0);
-    // g_menuInfo.y_label = y0_pixel + deg_to_pix_y * 0;
 
     PostcodeInstalls* i = g_pc_to_installs[e->pc];
     g_menuInfo.installs = i->installs;
@@ -252,45 +242,30 @@ void draw()
     g_menuInfo.y_patch_max = y0_pixel + yf * 256 * s - 1;  
 
     // 3D
-    //g_landscapeModel.setLocation(e->lon_min, e->lon_max, e->lat_min, e->lat_max);
+    g_landscapeModel.setLocation(e->lon_min, e->lon_max, e->lat_min, e->lat_max);
 
     // Center
-    // int tile_x_min, tile_y_min, tile_x_max, tile_y_max;
-    // int z = 7;
-    // deg2num(e->lat_min, e->lon_min, z, tile_x_min, tile_y_min);
-    // deg2num(e->lat_max, e->lon_max, z, tile_x_max, tile_y_max);
-    // float tile_x_center, tile_y_center;
-    // deg2numf(e->lat, e->lon, z, tile_x_center, tile_y_center);
+    int tile_x_min, tile_y_min, tile_x_max, tile_y_max;
+    int z = 7;
+    deg2num(e->lat_min, e->lon_min, z, tile_x_min, tile_y_min);
+    deg2num(e->lat_max, e->lon_max, z, tile_x_max, tile_y_max);
+    float tile_x_center, tile_y_center;
+    deg2numf(e->lat, e->lon, z, tile_x_center, tile_y_center);
 
-    // // float x = 0.5 * (1 + tile_x_max - tile_x_min);
-    // // float y = 0.5 * (1 + tile_y_min - tile_y_max);
-    // float x = 1.0 - (tile_x_center - tile_x_min);
-    // float y = tile_y_center - tile_y_max;
-    // std::cout << x << std::endl;
-    // std::cout << tile_x_center << std::endl;
-    // cameraControl.pivot.x = 0.1 * 256 * x;
-    // cameraControl.pivot.y = 0.1 * 256 * y;
+    // float x = 0.5 * (1 + tile_x_max - tile_x_min);
+    // float y = 0.5 * (1 + tile_y_min - tile_y_max);
+    float x = 1.0 - (tile_x_center - tile_x_min);
+    float y = tile_y_center - tile_y_max;
+    std::cout << x << std::endl;
+    std::cout << tile_x_center << std::endl;
+    cameraControl.pivot.x = 0.1 * 256 * x;
+    cameraControl.pivot.y = 0.1 * 256 * y;
 
     // And then checking the postcode generated daily data
     // Once per set()
     EM_ASM({
       return postcode_x($0);
-      }, atoi(e->pc.c_str()));
-    
-    // if (g_menuInfo.m_a < 0)
-    // {
-    //   double x = EM_ASM_DOUBLE({
-    //       return daily_total;
-    //       });
-    //   g_menuInfo.m_a = x;
-    // }    
-    // if (g_menuInfo.m_b < 0)
-    // {
-    //   double x = EM_ASM_DOUBLE({
-    //       return daily_state_total;
-    //       });
-    //   g_menuInfo.m_b = x;
-    // }    
+      }, atoi(e->pc.c_str()));  
   }
   g_menuManager.postdraw();
 
